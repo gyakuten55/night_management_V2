@@ -1,16 +1,27 @@
 夜職管理システム 企画書
 
 システム概要
-項目内容ターゲット夜職業界（キャバクラ、ラウンジ、スナック等）配布形式Windows .exe（ダウンロード販売）価格買い切り制 20万〜40万円（想定）開発方針オーダーメイド対応
+項目内容ターゲット夜職業界（キャバクラ、ラウンジ、スナック等）
 
 主要機能
 1. テーブル管理機能
-• 席の配置・レイアウト設定
+• 席の配置・レイアウト設定Unhandled Runtime Error
+ReferenceError: selectedDate is not defined
+
+Source
+src\app\casts\page.tsx (296:22) @ selectedDate
+
+  294 | <div className="px-6 py-4 border-b border-gray-200">
+  295 |   <h2 className="text-lg font-semibold text-gray-900">
+> 296 |     シフト管理 ({selectedDate})
+      |            ^
+  297 |   </h2>
+  298 | </div>
+  299 | <div className="overflow-x-auto">
 • リアルタイム空席状況表示
 • テーブル別オーダー状況管理
 • 席替え・延長対応
 2. メニュー管理機能
-• メニュー項目の追加・変更・削除
 • 価格設定・変更
 • カテゴリ分類管理
 • 季節限定メニュー対応
