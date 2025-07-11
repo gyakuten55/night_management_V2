@@ -172,156 +172,6 @@ export default function ReportsPage() {
     return casts.find(c => c.id === castId)
   }
 
-  // 指定した日付とキャストの同伴バック収入を計算
-  // 指定した日付の完了オーダーを取得
-  const getCompletedOrdersForDate = (date: string) => {
-    const selectedDateObj = new Date(date)
-    const selectedDateStr = selectedDateObj.toISOString().split('T')[0]
-    
-    return dataService.orders.getAll().filter(order => {
-      if (order.status !== 'completed' || !order.endTime) return false
-      const orderDateStr = new Date(order.endTime).toISOString().split('T')[0]
-      return orderDateStr === selectedDateStr
-    })
-  }
-
-  // キャストの勤務時間を計算
-  const getWorkHoursForCast = (castId: string, date: string): number => {
-    const selectedDateObj = new Date(date)
-    const selectedDateStr = selectedDateObj.toISOString().split('T')[0]
-    const shifts = dataService.shifts.getAll()
-    
-    const castShift = shifts.find(shift => 
-      shift.castId === castId && 
-      new Date(shift.date).toISOString().split('T')[0] === selectedDateStr
-    )
-
-    if (!castShift || !castShift.startTime) {
-      return 0
-    }
-
-    const [startHour, startMin] = castShift.startTime.split(':').map(Number)
-    const startMinutes = startHour * 60 + startMin
-    
-    let endMinutes: number
-    
-    if (castShift.endTime) {
-      // 終了時間が設定されている場合
-      const [endHour, endMin] = castShift.endTime.split(':').map(Number)
-      endMinutes = endHour * 60 + endMin
-    } else {
-      // 終了時間が未設定の場合のデフォルト処理
-      const currentDate = new Date()
-      const selectedDate = new Date(date)
-      
-      if (selectedDate.toDateString() === currentDate.toDateString()) {
-        // 当日の場合：現在時刻を使用（まだ勤務中の可能性）
-        const now = new Date()
-        endMinutes = now.getHours() * 60 + now.getMinutes()
-      } else {
-        // 過去の日付の場合：営業終了時間（翌日5時）をデフォルトとして使用
-        const businessCloseTime = settings?.businessHours?.close || '05:00'
-        const [closeHour, closeMin] = businessCloseTime.split(':').map(Number)
-        endMinutes = closeHour * 60 + closeMin
-      }
-    }
-    
-    // 翌日まで勤務の場合
-    if (endMinutes <= startMinutes) {
-      endMinutes += 24 * 60
-    }
-    
-    return (endMinutes - startMinutes) / 60
-  }
-
-  // キャストの売上を計算（指名・同伴のオーダーから）
-  const getSalesForCast = (castId: string, orders: any[]): number => {
-    return orders.reduce((total, order) => {
-      const hasShimei = order.customerInfo.guests.some((guest: any) => guest.shimeiCastId === castId)
-      return hasShimei ? total + order.total : total
-    }, 0)
-  }
-
-  // キャストの指名数を計算
-  const getShimeiCountForCast = (castId: string, orders: any[]): number => {
-    return orders.reduce((count, order) => {
-      const shimeiCount = order.customerInfo.guests.filter((guest: any) => guest.shimeiCastId === castId).length
-      return count + shimeiCount
-    }, 0)
-  }
-
-  // キャストの同伴数を計算
-  const getDouhanCountForCast = (castId: string, orders: any[]): number => {
-    return orders.reduce((count, order) => {
-      const douhanCount = order.customerInfo.guests.filter((guest: any) => 
-        guest.shimeiCastId === castId && guest.isDouhan
-      ).length
-      return count + douhanCount
-    }, 0)
-  }
-
-  // キャストの同伴バック収入を計算
-  const getDouhanBackIncomeForCast = (castId: string, orders: any[]): number => {
-    return orders.reduce((total, order) => {
-      if (!order.douhanBacks) return total
-      const castBacks = order.douhanBacks.filter((back: any) => back.castId === castId)
-      return total + castBacks.reduce((sum: number, back: any) => sum + back.amount, 0)
-    }, 0)
-  }
-
-  // 自動算出データを計算
-  const calculateAutoData = (date: string) => {
-    const completedOrders = getCompletedOrdersForDate(date)
-    const activeCasts = casts.filter(cast => cast.isActive)
-
-    // キャスト別データを計算
-    const castPerformances = activeCasts.map(cast => {
-      const workHours = getWorkHoursForCast(cast.id, date)
-      const sales = getSalesForCast(cast.id, completedOrders)
-      const shimeiCount = getShimeiCountForCast(cast.id, completedOrders)
-      const douhanCount = getDouhanCountForCast(cast.id, completedOrders)
-      const douhanBackIncome = getDouhanBackIncomeForCast(cast.id, completedOrders)
-
-      const performance: CastPerformance = {
-        castId: cast.id,
-        workHours,
-        sales,
-        shimeiCount,
-        douhanCount,
-        douhanBackIncome,
-        calculatedWage: calculateWage({ castId: cast.id, workHours, sales, shimeiCount, douhanCount, douhanBackIncome, calculatedWage: 0 }, cast)
-      }
-
-      return performance
-    })
-
-    // 基本情報を計算
-    const totalSales = completedOrders.reduce((sum, order) => sum + order.total, 0)
-    const customerCount = completedOrders.reduce((sum, order) => sum + order.customerInfo.guests.length, 0)
-    const totalWages = castPerformances.reduce((sum, perf) => sum + perf.calculatedWage, 0)
-    const profit = totalSales - totalWages
-    const averageSpend = customerCount > 0 ? totalSales / customerCount : 0
-
-    return {
-      totalSales,
-      customerCount,
-      totalWages,
-      profit,
-      averageSpend,
-      castPerformances
-    }
-  }
-
-  const calculateWage = (performance: CastPerformance, cast: Cast | undefined) => {
-    if (!cast) return 0
-
-    const baseWage = (cast.hourlyWage || 3000) * performance.workHours // 時給 × 勤務時間
-    const shimeiBonus = performance.shimeiCount * 1000 // 指名料
-    const douhanBackIncome = performance.douhanBackIncome || 0 // 同伴バック収入
-
-    return baseWage + shimeiBonus + douhanBackIncome
-  }
-
   // 自動算出データを再計算
   const refreshAutoData = () => {
     if (dailyReport && dailyReport.isClosed) {
@@ -433,6 +283,16 @@ export default function ReportsPage() {
     })
   }
 
+  const calculateWage = (performance: CastPerformance, cast: Cast | undefined) => {
+    if (!cast) return 0
+
+    const baseWage = (cast.hourlyWage || 3000) * performance.workHours // 時給 × 勤務時間
+    const shimeiBonus = performance.shimeiCount * 1000 // 指名料
+    const douhanBackIncome = performance.douhanBackIncome || 0 // 同伴バック収入
+
+    return baseWage + shimeiBonus + douhanBackIncome
+  }
+
   const saveReport = () => {
     const totalWages = reportForm.castPerformances.reduce((sum, perf) => sum + perf.calculatedWage, 0)
     const profit = reportForm.totalSales - totalWages
@@ -531,7 +391,7 @@ export default function ReportsPage() {
             <div className="flex items-center space-x-4">
               <button
                 onClick={refreshAutoData}
-                disabled={dailyReport && dailyReport.isClosed}
+                disabled={Boolean(dailyReport && dailyReport.isClosed)}
                 className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 flex items-center disabled:opacity-50"
               >
                 <TrendingUp className="h-4 w-4 mr-2" />
@@ -548,7 +408,7 @@ export default function ReportsPage() {
               )}
               <button
                 onClick={saveReport}
-                disabled={dailyReport && dailyReport.isClosed}
+                disabled={Boolean(dailyReport && dailyReport.isClosed)}
                 className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center disabled:opacity-50"
               >
                 <FileText className="h-4 w-4 mr-2" />
@@ -556,7 +416,7 @@ export default function ReportsPage() {
               </button>
               <button
                 onClick={closeReport}
-                disabled={dailyReport && dailyReport.isClosed}
+                disabled={Boolean(dailyReport && dailyReport.isClosed)}
                 className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 flex items-center disabled:opacity-50"
               >
                 <FileText className="h-4 w-4 mr-2" />

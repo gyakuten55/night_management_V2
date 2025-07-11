@@ -280,10 +280,10 @@ export const dataService = {
     // サンプルキャスト
     if (dataService.casts.getAll().length === 0) {
       const sampleCasts = [
-        { name: "美咲", backRate: 0.4, workType: 'honshimei' as const, baseWage: 3000, isActive: true },
-        { name: "愛", backRate: 0.35, workType: 'honshimei' as const, baseWage: 2500, isActive: true },
-        { name: "麗", backRate: 0.3, workType: 'help' as const, baseWage: 2000, isActive: true },
-        { name: "花音", backRate: 0.25, workType: 'help' as const, baseWage: 1500, isActive: true },
+        { name: "美咲", hourlyWage: 3000, isActive: true },
+        { name: "愛", hourlyWage: 2500, isActive: true },
+        { name: "麗", hourlyWage: 2000, isActive: true },
+        { name: "花音", hourlyWage: 1500, isActive: true },
       ];
 
       sampleCasts.forEach(cast => {
