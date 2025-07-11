@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import { 
   ArrowLeft, 
@@ -20,15 +20,15 @@ export default function AnalyticsPage() {
   const [menuItems, setMenuItems] = useState<MenuItem[]>([])
   const [selectedPeriod, setSelectedPeriod] = useState<'7days' | '30days' | '90days'>('30days')
 
-  useEffect(() => {
-    loadData()
-  }, [])
-
-  const loadData = () => {
+  const loadData = useCallback(() => {
     setReports(dataService.reports.getAll())
     setCasts(dataService.casts.getAll())
     setMenuItems(dataService.menu.getAllItems())
-  }
+  }, [])
+
+  useEffect(() => {
+    loadData()
+  }, [loadData])
 
   const getFilteredReports = () => {
     const now = new Date()
@@ -53,21 +53,24 @@ export default function AnalyticsPage() {
     )
     
     const totalSales = castReports.reduce((sum, perf) => sum + perf.sales, 0)
-    const totalCustomers = castReports.reduce((sum, perf) => sum + perf.customerCount, 0)
     const totalShimei = castReports.reduce((sum, perf) => sum + perf.shimeiCount, 0)
     const totalDouhan = castReports.reduce((sum, perf) => sum + perf.douhanCount, 0)
-    const totalAfter = castReports.reduce((sum, perf) => sum + perf.afterCount, 0)
     const totalWage = castReports.reduce((sum, perf) => sum + perf.calculatedWage, 0)
+
+    // 各キャストの顧客数はそのキャストが担当した日報から算出
+    const castCustomers = filteredReports.reduce((count, report) => {
+      const castPerf = report.castPerformance.find(perf => perf.castId === cast.id)
+      return castPerf && castPerf.shimeiCount > 0 ? count + castPerf.shimeiCount : count
+    }, 0)
 
     return {
       cast,
       totalSales,
-      totalCustomers,
+      totalCustomers: castCustomers,
       totalShimei,
       totalDouhan,
-      totalAfter,
       totalWage,
-      averageSpend: totalCustomers > 0 ? totalSales / totalCustomers : 0
+      averageSpend: castCustomers > 0 ? totalSales / castCustomers : 0
     }
   }).sort((a, b) => b.totalSales - a.totalSales)
 
@@ -233,7 +236,7 @@ export default function AnalyticsPage() {
                       <div className="ml-3">
                         <p className="font-medium text-gray-900">{stat.cast.name}</p>
                         <p className="text-sm text-gray-500">
-                          {stat.totalCustomers}名 (平均¥{Math.round(stat.averageSpend).toLocaleString()})
+                          指名{stat.totalShimei}回・同伴{stat.totalDouhan}回
                         </p>
                       </div>
                     </div>
@@ -274,7 +277,7 @@ export default function AnalyticsPage() {
                         <div className="ml-3">
                           <p className="font-medium text-gray-900">{stat.cast.name}</p>
                           <p className="text-sm text-gray-500">
-                            同伴{stat.totalDouhan}回・アフター{stat.totalAfter}回
+                            同伴{stat.totalDouhan}回・売上¥{(stat.totalSales / 1000).toFixed(0)}k
                           </p>
                         </div>
                       </div>
@@ -306,19 +309,10 @@ export default function AnalyticsPage() {
                     売上
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    客数
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    客単価
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     指名数
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     同伴数
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    アフター数
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     給与総額
@@ -335,19 +329,10 @@ export default function AnalyticsPage() {
                       ¥{stat.totalSales.toLocaleString()}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {stat.totalCustomers}名
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      ¥{Math.round(stat.averageSpend).toLocaleString()}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {stat.totalShimei}回
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {stat.totalDouhan}回
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {stat.totalAfter}回
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                       ¥{Math.round(stat.totalWage).toLocaleString()}

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import { 
   ArrowLeft, 
@@ -29,11 +29,7 @@ export default function ReportsPage() {
     castPerformances: [] as CastPerformance[]
   })
 
-  useEffect(() => {
-    loadData()
-  }, [selectedDate])
-
-  const loadData = () => {
+  const loadData = useCallback(() => {
     const date = new Date(selectedDate)
     const report = dataService.reports.getByDate(date)
     setDailyReport(report)
@@ -65,7 +61,11 @@ export default function ReportsPage() {
         castPerformances: autoData.castPerformances
       })
     }
-  }
+  }, [selectedDate])
+
+  useEffect(() => {
+    loadData()
+  }, [loadData])
 
   const getCastName = (castId: string) => {
     const cast = casts.find(c => c.id === castId)

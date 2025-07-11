@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import { 
   ArrowLeft, 
@@ -47,11 +47,7 @@ export default function MonthlyReportsPage() {
   const [selectedDailyReport, setSelectedDailyReport] = useState<DailyReport | null>(null)
   const [showDetailModal, setShowDetailModal] = useState(false)
 
-  useEffect(() => {
-    loadData()
-  }, [selectedYear, selectedMonth])
-
-  const loadData = () => {
+  const loadData = useCallback(() => {
     // 締め済みの日報データのみを取得
     const allReports = dataService.reports.getAll()
     const closedReports = allReports.filter(report => 
@@ -65,7 +61,11 @@ export default function MonthlyReportsPage() {
     
     setDailyReports(closedReports)
     setCasts(dataService.casts.getAll())
-  }
+  }, [selectedYear, selectedMonth])
+
+  useEffect(() => {
+    loadData()
+  }, [loadData])
 
   // 月間サマリーを計算
   const calculateMonthlySummary = (): MonthlySummary => {

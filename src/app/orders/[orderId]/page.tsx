@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { 
@@ -33,20 +33,7 @@ export default function OrderPage({ params }: OrderPageProps) {
   const [selectedMenuItem, setSelectedMenuItem] = useState<MenuItem | null>(null)
   const [currentTime, setCurrentTime] = useState(new Date())
 
-  useEffect(() => {
-    loadData()
-  }, [params.orderId])
-
-  // 時間を定期的に更新
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentTime(new Date())
-    }, 1000) // 1秒ごとに更新
-
-    return () => clearInterval(timer)
-  }, [])
-
-  const loadData = () => {
+  const loadData = useCallback(() => {
     const orderData = dataService.orders.getById(params.orderId)
     if (!orderData) {
       router.push('/tables')
@@ -66,7 +53,20 @@ export default function OrderPage({ params }: OrderPageProps) {
     if (categories.length > 0) {
       setSelectedCategory(categories[0].id)
     }
-  }
+  }, [params.orderId, router])
+
+  useEffect(() => {
+    loadData()
+  }, [loadData])
+
+  // 時間を定期的に更新
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(new Date())
+    }, 1000) // 1秒ごとに更新
+
+    return () => clearInterval(timer)
+  }, [])
 
   // 今日出勤中のキャストを取得
   const getTodayWorkingCasts = () => {
