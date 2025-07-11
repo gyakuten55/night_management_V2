@@ -54,11 +54,107 @@ export default function ReportsPage() {
       })
     } else {
       // 未締めまたは新規の場合は自動算出
-      const autoData = calculateAutoData(selectedDate)
+      // 依存関係の問題を避けるため、ここで直接計算
+      const completedOrders = dataService.orders.getAll().filter(order => {
+        if (order.status !== 'completed' || !order.endTime) return false
+        const orderDateStr = new Date(order.endTime).toISOString().split('T')[0]
+        const selectedDateStr = new Date(selectedDate).toISOString().split('T')[0]
+        return orderDateStr === selectedDateStr
+      })
+
+      const activeCasts = migratedCasts.filter(cast => cast.isActive)
+      const currentSettings = dataService.settings.get()
+
+      // キャスト別データを計算
+      const castPerformances = activeCasts.map(cast => {
+        // 勤務時間計算
+        const shifts = dataService.shifts.getAll()
+        const castShift = shifts.find(shift => 
+          shift.castId === cast.id && 
+          new Date(shift.date).toISOString().split('T')[0] === new Date(selectedDate).toISOString().split('T')[0]
+        )
+
+        let workHours = 0
+        if (castShift && castShift.startTime) {
+          const [startHour, startMin] = castShift.startTime.split(':').map(Number)
+          const startMinutes = startHour * 60 + startMin
+          
+          let endMinutes: number
+          
+          if (castShift.endTime) {
+            const [endHour, endMin] = castShift.endTime.split(':').map(Number)
+            endMinutes = endHour * 60 + endMin
+          } else {
+            const currentDate = new Date()
+            const selectedDateObj = new Date(selectedDate)
+            
+            if (selectedDateObj.toDateString() === currentDate.toDateString()) {
+              const now = new Date()
+              endMinutes = now.getHours() * 60 + now.getMinutes()
+            } else {
+              const businessCloseTime = currentSettings?.businessHours?.close || '05:00'
+              const [closeHour, closeMin] = businessCloseTime.split(':').map(Number)
+              endMinutes = closeHour * 60 + closeMin
+            }
+          }
+          
+          if (endMinutes <= startMinutes) {
+            endMinutes += 24 * 60
+          }
+          
+          workHours = (endMinutes - startMinutes) / 60
+        }
+
+        // 売上・カウント計算
+        const sales = completedOrders.reduce((total, order) => {
+          const hasShimei = order.customerInfo.guests.some((guest: any) => guest.shimeiCastId === cast.id)
+          return hasShimei ? total + order.total : total
+        }, 0)
+
+        const shimeiCount = completedOrders.reduce((count, order) => {
+          const shimeiCount = order.customerInfo.guests.filter((guest: any) => guest.shimeiCastId === cast.id).length
+          return count + shimeiCount
+        }, 0)
+
+        const douhanCount = completedOrders.reduce((count, order) => {
+          const douhanCount = order.customerInfo.guests.filter((guest: any) => 
+            guest.shimeiCastId === cast.id && guest.isDouhan
+          ).length
+          return count + douhanCount
+        }, 0)
+
+        const douhanBackIncome = completedOrders.reduce((total, order) => {
+          if (!order.douhanBacks) return total
+          const castBacks = order.douhanBacks.filter((back: any) => back.castId === cast.id)
+          return total + castBacks.reduce((sum: number, back: any) => sum + back.amount, 0)
+        }, 0)
+
+        // 給与計算
+        const baseWage = (cast.hourlyWage || 3000) * workHours
+        const shimeiBonus = shimeiCount * 1000
+        const calculatedWage = baseWage + shimeiBonus + (douhanBackIncome || 0)
+
+        const performance: CastPerformance = {
+          castId: cast.id,
+          workHours,
+          sales,
+          shimeiCount,
+          douhanCount,
+          douhanBackIncome,
+          calculatedWage
+        }
+
+        return performance
+      })
+
+      // 基本情報を計算
+      const totalSales = completedOrders.reduce((sum, order) => sum + order.total, 0)
+      const customerCount = completedOrders.reduce((sum, order) => sum + order.customerInfo.guests.length, 0)
+
       setReportForm({
-        totalSales: autoData.totalSales,
-        customerCount: autoData.customerCount,
-        castPerformances: autoData.castPerformances
+        totalSales,
+        customerCount,
+        castPerformances
       })
     }
   }, [selectedDate])
@@ -233,11 +329,107 @@ export default function ReportsPage() {
       return
     }
     
-    const autoData = calculateAutoData(selectedDate)
+    // loadDataと同じロジックで再計算（依存関係の問題を避けるため）
+    const completedOrders = dataService.orders.getAll().filter(order => {
+      if (order.status !== 'completed' || !order.endTime) return false
+      const orderDateStr = new Date(order.endTime).toISOString().split('T')[0]
+      const selectedDateStr = new Date(selectedDate).toISOString().split('T')[0]
+      return orderDateStr === selectedDateStr
+    })
+
+    const activeCasts = casts.filter(cast => cast.isActive)
+    const currentSettings = dataService.settings.get()
+
+    // キャスト別データを計算
+    const castPerformances = activeCasts.map(cast => {
+      // 勤務時間計算
+      const shifts = dataService.shifts.getAll()
+      const castShift = shifts.find(shift => 
+        shift.castId === cast.id && 
+        new Date(shift.date).toISOString().split('T')[0] === new Date(selectedDate).toISOString().split('T')[0]
+      )
+
+      let workHours = 0
+      if (castShift && castShift.startTime) {
+        const [startHour, startMin] = castShift.startTime.split(':').map(Number)
+        const startMinutes = startHour * 60 + startMin
+        
+        let endMinutes: number
+        
+        if (castShift.endTime) {
+          const [endHour, endMin] = castShift.endTime.split(':').map(Number)
+          endMinutes = endHour * 60 + endMin
+        } else {
+          const currentDate = new Date()
+          const selectedDateObj = new Date(selectedDate)
+          
+          if (selectedDateObj.toDateString() === currentDate.toDateString()) {
+            const now = new Date()
+            endMinutes = now.getHours() * 60 + now.getMinutes()
+          } else {
+            const businessCloseTime = currentSettings?.businessHours?.close || '05:00'
+            const [closeHour, closeMin] = businessCloseTime.split(':').map(Number)
+            endMinutes = closeHour * 60 + closeMin
+          }
+        }
+        
+        if (endMinutes <= startMinutes) {
+          endMinutes += 24 * 60
+        }
+        
+        workHours = (endMinutes - startMinutes) / 60
+      }
+
+      // 売上・カウント計算
+      const sales = completedOrders.reduce((total, order) => {
+        const hasShimei = order.customerInfo.guests.some((guest: any) => guest.shimeiCastId === cast.id)
+        return hasShimei ? total + order.total : total
+      }, 0)
+
+      const shimeiCount = completedOrders.reduce((count, order) => {
+        const shimeiCount = order.customerInfo.guests.filter((guest: any) => guest.shimeiCastId === cast.id).length
+        return count + shimeiCount
+      }, 0)
+
+      const douhanCount = completedOrders.reduce((count, order) => {
+        const douhanCount = order.customerInfo.guests.filter((guest: any) => 
+          guest.shimeiCastId === cast.id && guest.isDouhan
+        ).length
+        return count + douhanCount
+      }, 0)
+
+      const douhanBackIncome = completedOrders.reduce((total, order) => {
+        if (!order.douhanBacks) return total
+        const castBacks = order.douhanBacks.filter((back: any) => back.castId === cast.id)
+        return total + castBacks.reduce((sum: number, back: any) => sum + back.amount, 0)
+      }, 0)
+
+      // 給与計算
+      const baseWage = (cast.hourlyWage || 3000) * workHours
+      const shimeiBonus = shimeiCount * 1000
+      const calculatedWage = baseWage + shimeiBonus + (douhanBackIncome || 0)
+
+      const performance: CastPerformance = {
+        castId: cast.id,
+        workHours,
+        sales,
+        shimeiCount,
+        douhanCount,
+        douhanBackIncome,
+        calculatedWage
+      }
+
+      return performance
+    })
+
+    // 基本情報を計算
+    const totalSales = completedOrders.reduce((sum, order) => sum + order.total, 0)
+    const customerCount = completedOrders.reduce((sum, order) => sum + order.customerInfo.guests.length, 0)
+
     setReportForm({
-      totalSales: autoData.totalSales,
-      customerCount: autoData.customerCount,
-      castPerformances: autoData.castPerformances
+      totalSales,
+      customerCount,
+      castPerformances
     })
   }
 

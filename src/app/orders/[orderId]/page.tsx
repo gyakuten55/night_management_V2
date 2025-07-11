@@ -14,7 +14,7 @@ import {
   Trash2
 } from 'lucide-react'
 import { dataService } from '@/lib/storage'
-import { Order, MenuItem, MenuCategory, Cast, Table, DouhanBack } from '@/types'
+import { Order, MenuItem, MenuCategory, Cast, Table, DouhanBack, OrderItem } from '@/types'
 
 interface OrderPageProps {
   params: { orderId: string }
@@ -150,7 +150,7 @@ export default function OrderPage({ params }: OrderPageProps) {
     updateOrderCalculation(updatedItems)
   }
 
-  const updateOrderCalculation = (items: typeof order.items) => {
+  const updateOrderCalculation = (items: OrderItem[]) => {
     if (!order) return
 
     const settings = dataService.settings.get()
